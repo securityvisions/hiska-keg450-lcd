@@ -1,0 +1,12 @@
+# HISKA HX-KEG450 — give the user access to the vendor HID interfaces
+# (0xFF13 control channel and 0xFF68 image channel both live under hidraw).
+#
+# Install:
+#   sudo cp 99-hiska-keg450.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger --subsystem-match=hidraw
+#
+# The keyboard reports Apple's USB IDs (05ac:024f) on purpose, so match on the
+# IDs rather than on a name.
+
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="05ac", ATTRS{idProduct}=="024f", MODE="0660", GROUP="input", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="05ac", ATTRS{idProduct}=="024f", MODE="0660", GROUP="input", TAG+="uaccess"
