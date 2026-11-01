@@ -5,6 +5,10 @@ Linux — no Windows, no vendor tool, no VM.
 
 ![screen examples](docs/img/sys.png)
 
+> **Desktop GUI:** [**HX450 Studio**](https://github.com/securityvisions/hx450-studio)
+> — a Rust + egui studio for the same hardware (canvas editor, GIF timeline,
+> lighting controls, live providers). This repo is the CLI and the protocol notes.
+
 The vendor only ships a Windows MFC app. This repository contains a
 reverse-engineered replacement: a small Python client that speaks the keyboard's
 vendor HID protocol directly over `/dev/hidraw`, plus a renderer that pushes
