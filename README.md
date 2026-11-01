@@ -150,21 +150,34 @@ selected.
 
 ### Keep the clock live
 
-The panel only stays live while something keeps pushing frames. Install the bundled
-user unit:
+The panel only stays live while something keeps pushing frames. Install the user
+unit — it points at this checkout and starts immediately:
 
 ```bash
-mkdir -p ~/.config/systemd/user
-cp contrib/systemd/hiska-keg450-live.service ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable --now hiska-keg450-live.service
+./live.py --install-service            # or: make install-service
 journalctl --user -u hiska-keg450-live -f
 ```
 
-It runs `live.py --provider clock --interval 60`; edit `ExecStart` if you cloned the
-repository somewhere other than `~/Personal/hiska-keg450-lcd` (`%h` is your home
-directory). `Restart=always` brings the clock back after a suspend or a replug. Add
-`--sync-clock` to the exec line to keep the keyboard's own RTC correct too.
+The provider and interval you pass are baked into the unit, so
+`./live.py --provider sys --interval 60 --install-service` installs a system-monitor
+pusher instead. `Restart=always` brings it back after a suspend or a replug.
+`./live.py --uninstall-service` (or `make uninstall-service`) stops and removes it.
+`--dry-run` prints the unit and the commands without touching anything.
+
+The unit name `hiska-keg450-live.service` is shared with the GUI app
+(`hx450-studio`): the last installer wins, so two pushers never fight over the
+panel. A foreground `live.py` warns if that unit is already running.
+
+Manual fallback if you prefer to write the unit yourself:
+
+```bash
+mkdir -p ~/.config/systemd/user
+sed "s|%h/Personal/hiska-keg450-lcd|$PWD|" \
+  contrib/systemd/hiska-keg450-live.service \
+  > ~/.config/systemd/user/hiska-keg450-live.service
+systemctl --user daemon-reload
+systemctl --user enable --now hiska-keg450-live.service
+```
 
 ## ⚠️ Limitations and flash wear
 

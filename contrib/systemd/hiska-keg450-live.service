@@ -1,3 +1,9 @@
+# Reference template. Do not hand-edit this copy: `./live.py --install-service`
+# (or `make install-service`) generates the real unit from your checkout path and
+# the provider/interval you selected, then reloads and enables it.
+#
+# The GUI app (hx450-studio) installs this same unit name. Last writer wins, so
+# only one pusher ever runs — no screen fights.
 [Unit]
 Description=HISKA HX-KEG450 live clock on the keyboard LCD
 Documentation=https://github.com/securityvisions/hiska-keg450-lcd
