@@ -346,7 +346,7 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as exc:             # a dead keyboard must not kill the loop
             print(f"[{datetime.now():%H:%M:%S}] push failed: {exc}",
                   file=sys.stderr, flush=True)
-        time.sleep(max(1.0, args.interval))
+        time.sleep(next_delay(args.provider, args.interval))
 
 
 if __name__ == "__main__":
