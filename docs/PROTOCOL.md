@@ -124,10 +124,16 @@ Short commands are 64 bytes, only the first bytes are significant.
 | `04 F0` | end / finish |
 | `04 13 … 01` | enter lighting write mode (see §5) |
 | `04 28 <yy mm dd hh mm ss>` | set RTC — **unverified** (sent once by the vendor tool; effect not confirmed) |
-| `04 F5 … 09` | heartbeat/poll the vendor tool sends every ~30 ms |
+| `04 F5 <n> 09` | **per-key colour readback** — returns 9 × 64 B of `[idx][R][G][B]` records. The vendor tool polls it every ~30 ms and ignores the payload; on hardware the device exposes 3 pages × 256 records (page byte in the header) |
 
-Our tool does **not** need the `04 F5` heartbeat: every upload and lighting
-change works with plain command sequences.
+Our tool does **not** need the `04 F5` poll: every upload and lighting change
+works with plain command sequences.
+
+> **Full atlas.** Key remapping (`04 11` / `04 27`), macros (`04 19` + `04 15`),
+> settings (`04 17`), per-key static colours (`04 23`), the real-time per-key
+> stream (`04 20`), the 2.4 GHz dongle frame format and every negative finding are
+> documented in [`OPCODES.md`](OPCODES.md), with [`CAPABILITIES.md`](CAPABILITIES.md)
+> as the feature-level summary.
 
 ## 4. Screen upload
 

@@ -31,7 +31,11 @@ changing content (clock, CPU load, Claude Code usage) to the screen.
   driven by CPU load.
 - **Pure `/dev/hidraw`** — no kernel module, no libusb, no root after the udev
   rule is in place.
-- **Full protocol documentation** — see [`docs/PROTOCOL.md`](docs/PROTOCOL.md).
+- **Full protocol documentation** — [`docs/PROTOCOL.md`](docs/PROTOCOL.md) for the
+  implemented path, [`docs/OPCODES.md`](docs/OPCODES.md) for the complete
+  reverse-engineered atlas (key remapping, macros, settings, per-key RGB, 2.4 GHz
+  dongle), and [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md) for the feature
+  matrix.
 
 ## Requirements
 
