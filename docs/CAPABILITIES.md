@@ -3,8 +3,10 @@
 What the keyboard can actually do, and the bytes that do it. Everything below was
 recovered statically from the vendor binary (`DeviceDriver.exe`, MFC, PE32 i386)
 and cross-checked against hardware where noted. The full byte-level detail with
-function addresses and decompiled evidence lives in [`OPCODES.md`](OPCODES.md);
-how it was recovered is in [`RE-METHOD.md`](RE-METHOD.md).
+function addresses and decompiled evidence lives in the
+[RE kit](https://github.com/securityvisions/hx450-re) —
+[`docs/OPCODES.md`](https://github.com/securityvisions/hx450-re/blob/main/docs/OPCODES.md)
+and [`docs/RE-METHOD.md`](https://github.com/securityvisions/hx450-re/blob/main/docs/RE-METHOD.md).
 
 Confidence: **[C]** verified in code or on hardware · **[I]** inferred · **[U]** unknown.
 
@@ -95,8 +97,8 @@ checksum. Commands are spaced 35 ms.
 |---|---|
 | [`keg450.py`](../keg450.py) | image/GIF upload, lighting, clock — the reference implementation |
 | [`live.py`](../live.py) | periodic frames, clock pushes aligned to the minute |
-| [`../hx450-studio`](https://github.com/securityvisions/hx450-studio) | the desktop studio |
-| `probe.py` | gated opcode prober for hardware experiments (lives in the research tree, not shipped here) |
+| [`hx450-studio`](https://github.com/securityvisions/hx450-studio) | the desktop studio |
+| [`hx450-re`](https://github.com/securityvisions/hx450-re) | gated opcode prober, usbmon capture/diff, Ghidra evidence |
 
 ## Safety notes
 

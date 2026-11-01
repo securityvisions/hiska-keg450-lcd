@@ -3,23 +3,29 @@
 Drive the **HISKA HX-KEG450** keyboard's 160×96 LCD and its RGB lighting from
 Linux — no Windows, no vendor tool, no VM.
 
-![screen examples](docs/img/sys.png)
-
-> **Desktop GUI:** [**HX450 Studio**](https://github.com/securityvisions/hx450-studio)
-> — a Rust + egui studio for the same hardware (canvas editor, GIF timeline,
-> lighting controls, live providers). This repo is the CLI and the protocol notes.
-
-The vendor only ships a Windows MFC app. This repository contains a
-reverse-engineered replacement: a small Python client that speaks the keyboard's
-vendor HID protocol directly over `/dev/hidraw`, plus a renderer that pushes
-changing content (clock, CPU load, Claude Code usage) to the screen.
+![license](https://img.shields.io/badge/license-MIT-blue)
+![python](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)
+![platform](https://img.shields.io/badge/platform-Linux-333?logo=linux&logoColor=white)
+![hardware](https://img.shields.io/badge/hardware-HX--KEG450-4cc38a)
+![protocol](https://img.shields.io/badge/protocol-reverse--engineered-f0a33c)
 
 | | | |
 |---|---|---|
 | ![clock](docs/img/clock.png) | ![claude](docs/img/claude.png) | ![light](docs/img/light.png) |
 | clock | Claude context usage | adaptive lighting |
 
----
+The vendor only ships a Windows MFC application. This repository is the
+reverse-engineered replacement: a small Python client that speaks the keyboard's
+vendor HID protocol directly over `/dev/hidraw`, plus a renderer that pushes
+changing content — clock, CPU load, Claude Code usage — to the panel.
+
+## The family
+
+| Repo | What it is |
+|---|---|
+| **hiska-keg450-lcd** (here) | Python CLI + protocol reference |
+| [**hx450-studio**](https://github.com/securityvisions/hx450-studio) | Rust + egui desktop studio — canvas editor, GIF timeline, lighting, live providers |
+| [**hx450-re**](https://github.com/securityvisions/hx450-re) | reverse-engineering kit — opcode atlas, firmware report, Ghidra evidence, gated prober |
 
 ## Features
 
@@ -27,29 +33,20 @@ changing content (clock, CPU load, Claude Code usage) to the screen.
   (up to 255 frames), converted to the panel's RGB565 format.
 - **RGB lighting control** — all 20 effects, solid colour, brightness, speed.
 - **Live content** — a daemon that re-renders and pushes a frame on an interval:
-  clock, CPU/RAM/temperature, Claude Code context usage, or adaptive lighting
-  driven by CPU load.
-- **Pure `/dev/hidraw`** — no kernel module, no libusb, no root after the udev
-  rule is in place.
+  clock (aligned to the minute boundary), CPU/RAM/temperature, Claude Code context
+  usage, or adaptive lighting driven by CPU load.
+- **Pure `/dev/hidraw`** — no kernel module, no libusb, no root after one udev rule.
 - **Full protocol documentation** — [`docs/PROTOCOL.md`](docs/PROTOCOL.md) for the
-  implemented path, [`docs/OPCODES.md`](docs/OPCODES.md) for the complete
-  reverse-engineered atlas (key remapping, macros, settings, per-key RGB, 2.4 GHz
-  dongle), and [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md) for the feature
-  matrix.
+  implemented path, [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md) for the complete
+  feature matrix of the hardware.
 
 ## Requirements
 
-- Linux with `hidraw` (any recent kernel) and the keyboard connected **by the
-  USB-C cable** (the screen is disabled over 2.4 GHz and Bluetooth).
+- Linux with `hidraw`, and the keyboard on the **USB-C cable** (the panel is
+  disabled over 2.4 GHz and Bluetooth).
 - Python **3.10+**
 - [Pillow](https://python-pillow.org/) (`python3-pil` / `pip install Pillow`)
 - Your user in the `input` group
-
-```bash
-sudo pacman -S python-pil            # Arch
-sudo apt install python3-pil         # Debian/Ubuntu
-sudo dnf install python3-pillow      # Fedora
-```
 
 ## Install
 
@@ -75,8 +72,6 @@ control node: /dev/hidraw7  (0xFF13, 64-byte feature)
 screen      : 160x96 RGB565, max 255 frames
 ```
 
-If that prints nothing, see [Troubleshooting](#troubleshooting).
-
 ## Usage
 
 ### Screen
@@ -98,13 +93,13 @@ If that prints nothing, see [Troubleshooting](#troubleshooting).
 ./keg450.py light --mode off                        # lights out
 ```
 
-`--brightness` and `--speed` are `0-5`. `--colorful` selects the rainbow
-palette, in which case `--color` is ignored.
+`--brightness` and `--speed` are `0-5`. `--colorful` selects the rainbow palette,
+in which case `--color` is ignored.
 
 ### Live display
 
 ```bash
-./live.py --provider clock  --interval 60      # time and date
+./live.py --provider clock  --interval 60      # time and date, minute-aligned
 ./live.py --provider sys    --interval 30      # CPU % / RAM / temp
 ./live.py --provider claude --interval 120     # Claude Code context usage
 ./live.py --provider text --text "BUILD OK" --once
@@ -117,6 +112,10 @@ Adaptive lighting — a solid colour that follows CPU load
 ```bash
 ./live.py --provider light --also-light --interval 20
 ```
+
+The clock provider schedules to the **next minute boundary + 1.2 s**, so the panel
+flips within about a second of the minute changing instead of lagging behind. A
+failed push retries after 3 s.
 
 Run it in the background with the bundled user unit:
 
@@ -132,13 +131,11 @@ journalctl --user -u hiska-keg450 -f
 
 - **There is no framebuffer.** The screen holds one stored animation; "live"
   means re-uploading a frame. Each update takes ~1.2 s (8 pages of 4096 bytes).
-- **Every upload rewrites the screen image in flash.** At a 30 s interval that
-  is ~2 900 writes/day. Treat **30 s as the floor and 60 s+ as the comfortable
-  zone** for a keyboard you want to keep for years. `live.py` refuses
-  intervals below 10 s for this reason.
-- **Wired only.** The vendor layout XML disables the screen menu in wireless
-  mode, and the 2.4 GHz receiver exposes different vendor pages that were not
-  reverse-engineered here.
+- **Every upload rewrites the screen image in flash.** At a 30 s interval that is
+  ~2 900 writes/day. Treat **30 s as the floor and 60 s+ as comfortable**.
+  `live.py` refuses intervals below 10 s for this reason.
+- **Wired only.** The vendor layout XML disables the screen menu in wireless mode,
+  and the 2.4 GHz receiver exposes different vendor pages.
 - **Colour depth is RGB565**, so smooth gradients will band.
 - **One animation slot.** Uploading replaces the previous content.
 
@@ -161,8 +158,10 @@ Two Linux traps worth knowing: control reports need a **65-byte** ioctl buffer
 (report-ID byte included) and image pages must be written as **4097** bytes, or
 hidraw drops a byte on pages starting with `0x00`.
 
-The complete byte-level spec — including how it was recovered with Wine,
-`strace` and `usbmon` — is in [`docs/PROTOCOL.md`](docs/PROTOCOL.md).
+Byte-level reference: [`docs/PROTOCOL.md`](docs/PROTOCOL.md). The complete
+reverse-engineered atlas (key remapping, macros, settings, per-key RGB, the
+2.4 GHz dongle family) is in the
+[RE kit](https://github.com/securityvisions/hx450-re).
 
 ## Troubleshooting
 
@@ -170,28 +169,26 @@ The complete byte-level spec — including how it was recovered with Wine,
 |---|---|
 | `HX-KEG450 not found` | Keyboard on the cable, not the dongle; check `ls /sys/class/hidraw/`; re-run the udev steps |
 | `Permission denied` on `/dev/hidraw*` | udev rule not applied or you are not in `input` — log out and back in |
-| `page N was not acknowledged` | Previous upload was interrupted; just run the command again (content is rewritten atomically) |
-| Lighting command returns `ok` but nothing changes | Make sure you are on the cable, and that the keyboard is not in an onboard-effect lock; `./keg450.py light --mode off` then a mode again |
+| `page N was not acknowledged` | Previous upload was interrupted; run the command again (content is rewritten atomically) |
+| Lighting returns `ok` but nothing changes | You are on the cable and the keyboard is not in an onboard-effect lock; `./keg450.py light --mode off` then a mode again |
 | Screen stays black after an upload | Confirm `commit: ok`, then press a key; the panel re-draws its stored animation |
 
 ## Compatibility
 
-Tested on the **HISKA HX-KEG450** only. The `0xFF13` + `0xFF68` pair and the
-`04 xx` command family appear on other SONiX-based OEM LCD keyboards (AULA,
-AJAZZ, Epomaker, and relatives), but geometry, slot count and the "colourful"
-flag are model-specific — see the prior art list in
-[`docs/PROTOCOL.md`](docs/PROTOCOL.md#9-prior-art).
+Tested on the **HISKA HX-KEG450** (firmware 1.06) only. The `0xFF13` + `0xFF68`
+pair and the `04 xx` command family appear on other SONiX-based OEM LCD keyboards
+(AULA, AJAZZ, Epomaker and relatives), but geometry, slot count and the
+"colourful" flag are model-specific.
 
 If you own a different board, start with `./keg450.py testcard`: if the colours
-land correctly you are on the same protocol, and only `SCREEN_W` / `SCREEN_H`
-need changing.
+land correctly you are on the same protocol, and only `SCREEN_W` / `SCREEN_H` need
+changing.
 
 ## Disclaimer
 
 Unofficial, unaffiliated with HISKA. Everything here was derived from observing
-the vendor software's traffic on owned hardware. Writes go to the keyboard's
-configuration memory; there is always some risk when poking undocumented
-firmware. Use it on hardware you own.
+vendor software traffic on owned hardware. Writes go to the keyboard's
+configuration memory; there is always some risk when poking undocumented firmware.
 
 ## License
 

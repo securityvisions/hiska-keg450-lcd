@@ -132,8 +132,8 @@ works with plain command sequences.
 > **Full atlas.** Key remapping (`04 11` / `04 27`), macros (`04 19` + `04 15`),
 > settings (`04 17`), per-key static colours (`04 23`), the real-time per-key
 > stream (`04 20`), the 2.4 GHz dongle frame format and every negative finding are
-> documented in [`OPCODES.md`](OPCODES.md), with [`CAPABILITIES.md`](CAPABILITIES.md)
-> as the feature-level summary.
+> in the [RE kit](https://github.com/securityvisions/hx450-re/blob/main/docs/OPCODES.md);
+> [`CAPABILITIES.md`](CAPABILITIES.md) is the feature-level summary.
 
 ## 4. Screen upload
 
