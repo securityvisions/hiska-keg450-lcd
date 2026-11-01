@@ -6,11 +6,17 @@ N seconds (8 pages, about 1.2 s per upload). Keep the interval at 30 s or more â
 each upload rewrites the screen image in flash.
 
     ./live.py --provider clock  --interval 60
+    ./live.py --provider clock  --interval 60 --sync-clock
     ./live.py --provider sys    --interval 30
     ./live.py --provider claude --interval 120
     ./live.py --provider light  --also-light      # adaptive RGB by CPU load
     ./live.py --provider text --text "BUILD OK" --once
     ./live.py --provider sys --preview /tmp/frame.png
+
+--sync-clock also pushes the local time to the keyboard RTC (04 28) when
+the loop starts and then once an hour. The panel shows the uploaded frame
+either way; the RTC only matters when the keyboard's built-in clock display
+mode is selected.
 """
 from __future__ import annotations
 
@@ -294,8 +300,21 @@ def claude_context() -> tuple[int, int, str]:
 
 
 # --------------------------------------------------------------------- main ---
-def upload(frame: Image.Image, verbose: bool = False, also_light: bool = False) -> None:
+def next_delay(provider: str, interval: float) -> float:
+    """Clock pushes are aligned to the minute boundary so the panel flips on time."""
+    if provider == "clock":
+        now = datetime.now()
+        until_next_minute = 60 - now.second - now.microsecond / 1_000_000 + 1.2
+        return max(1.0, min(until_next_minute, interval))
+    return max(1.0, interval)
+
+
+def upload(frame: Image.Image, verbose: bool = False, also_light: bool = False,
+           sync_clock: bool = False) -> None:
     with keg450.Device(verbose=verbose) as dev:
+        if sync_clock and not dev.clock_sync(quiet=True):
+            print(f"[{datetime.now():%H:%M:%S}] RTC sync was not acknowledged",
+                  file=sys.stderr, flush=True)
         dev.upload_payload(keg450.frames_to_payload([frame], [2000]), quiet=True)
         if also_light:
             dev.set_light(1, _load_colour(cpu_percent()), 5, 3, quiet=True)
@@ -313,6 +332,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--preview", metavar="PNG", help="write the frame and exit")
     parser.add_argument("--also-light", action="store_true",
                         help="also set a solid RGB colour from CPU load")
+    parser.add_argument("--sync-clock", action="store_true",
+                        help="also push the local time to the keyboard RTC "
+                             "(on start and once an hour)")
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args(argv)
 
@@ -332,15 +354,20 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.once:
-        upload(build(), args.verbose, args.also_light)
+        upload(build(), args.verbose, args.also_light, args.sync_clock)
         return 0
 
     round_number = 0
+    synced_at: float | None = None
     while True:
         round_number += 1
+        sync = args.sync_clock and (synced_at is None
+                                    or time.monotonic() - synced_at >= 3600)
         try:
             started = time.monotonic()
-            upload(build(), args.verbose, args.also_light)
+            upload(build(), args.verbose, args.also_light, sync)
+            if sync:
+                synced_at = time.monotonic()
             print(f"[{datetime.now():%H:%M:%S}] frame {round_number} pushed "
                   f"in {time.monotonic() - started:.1f}s", flush=True)
         except Exception as exc:             # a dead keyboard must not kill the loop
