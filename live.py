@@ -449,12 +449,16 @@ def next_delay(provider: str, interval: float) -> float:
 def upload(frame: Image.Image, verbose: bool = False, also_light: bool = False,
            sync_clock: bool = False) -> None:
     with keg450.Device(verbose=verbose) as dev:
-        if sync_clock and not dev.clock_sync(quiet=True):
-            print(f"[{datetime.now():%H:%M:%S}] RTC sync was not acknowledged",
-                  file=sys.stderr, flush=True)
         dev.upload_payload(keg450.frames_to_payload([frame], [2000]), quiet=True)
         if also_light:
             dev.set_light(1, _load_colour(cpu_percent()), 5, 3, quiet=True)
+        if sync_clock:
+            # 04 28 immediately *before* an upload makes the panel reject the first
+            # page, so the RTC is pushed after the frame instead.
+            time.sleep(1.0)
+            if not dev.clock_sync(quiet=True):
+                print(f"[{datetime.now():%H:%M:%S}] RTC sync was not acknowledged",
+                      file=sys.stderr, flush=True)
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -121,6 +121,30 @@ are verified in the vendor binary (`FUN_004141a0`). The **value semantics** — 
 sleep index is 1 vs 5 vs 30 minutes, momentary vs toggle, what debounce level 1–5
 feels like — are inferred from the vendor UI strings and unconfirmed on hardware.
 
+### Animated scene
+
+A loop that keeps moving on the panel by itself: a drifting nebula, the numbers
+on top in white, and one small pet in the corner that breathes, blinks, and gets
+wide-eyed when the CPU runs hot.
+
+```bash
+./scene.py --preview /tmp/scene.png        # render a contact sheet, touch nothing
+./scene.py --once                          # push one loop now
+./scene.py                                 # keep it fresh every 15 minutes
+./scene.py --background ~/Pictures/loop.gif  # use any GIF as the backdrop
+```
+
+The background is generated (no bundled assets, no licence questions); point
+`--background` at any GIF — it is centre-cropped, desaturated and dimmed so the
+white telemetry always reads. Default refresh is 15 minutes on purpose: each
+refresh rewrites ~190 flash pages, so the motion is baked into the animation and
+only the numbers are re-sent.
+
+```bash
+# make the scene the thing that runs in the background
+./scene.py --background ~/Pictures/hx450/nebula.gif --interval 900 --sync-clock
+```
+
 ### Live display
 
 ```bash
