@@ -43,6 +43,52 @@ ACK_OK = 0x01
 ACK_REJECTED = 0xFF
 PAGE_ACK_MAGIC = b"\x01\x5a\x02"
 
+# ---------------------------------------------------------------- settings ---
+# `04 17` system-settings block. The field *offsets* are verified in the vendor
+# binary (FUN_004141a0, see hx450-re docs/OPCODES.md §4.2). The *value*
+# semantics below are inferred from the vendor UI strings, and there is no
+# read-back: every write sends a complete block, so flags you leave out go back
+# to their defaults.
+SETTINGS_FN = {"momentary": 0, "toggle": 1}          # [I] inferred
+SETTINGS_SLEEP = {"off": 0, "1": 1, "5": 2, "30": 3}  # [I] inferred: 1/5/30 min
+SETTINGS_DEFAULTS = {
+    "disable_alttab": False,
+    "disable_altf4": False,
+    "disable_win": False,
+    "fn_switch": 0,
+    "sleep_time": 0,
+    "key_respondtime": 3,
+}
+
+
+def settings_block(disable_alttab: bool = False, disable_altf4: bool = False,
+                   disable_win: bool = False, fn_switch: int = 0,
+                   sleep_time: int = 0, key_respondtime: int = 3) -> bytes:
+    """Build the 64-byte block that follows the ``04 17`` header.
+
+    Byte 0 is 0, byte 1 is 1 and bytes 62-63 are the ``AA 55`` end marker; bytes
+    9-61 are zero. Locks are 0/1; ``fn_switch`` 0 = momentary, 1 = toggle;
+    ``sleep_time`` 0 = off, 1/2/3 = 1/5/30 min; ``key_respondtime`` 1-5.
+    """
+    if fn_switch not in (0, 1):
+        raise ValueError("fn_switch must be 0 (momentary) or 1 (toggle)")
+    if sleep_time not in (0, 1, 2, 3):
+        raise ValueError("sleep_time must be 0 (off), 1, 2 or 3")
+    if not 1 <= key_respondtime <= 5:
+        raise ValueError("key_respondtime must be 1-5")
+
+    block = bytearray(64)
+    block[1] = 1
+    block[2] = int(bool(disable_alttab))
+    block[3] = int(bool(disable_altf4))
+    block[4] = int(bool(disable_win))
+    block[5] = fn_switch
+    block[6] = sleep_time
+    block[8] = key_respondtime
+    block[62] = 0xAA
+    block[63] = 0x55
+    return bytes(block)
+
 
 # ------------------------------------------------------------- hid plumbing --
 def _ioc(direction: int, type_char: str, nr: int, size: int) -> int:
@@ -272,6 +318,29 @@ class Device:
             print(f"  commit    : {self.status(commit)}")
         return self.status(commit) == "ok"
 
+    # -- system settings ---------------------------------------------------
+    def set_settings(self, block: bytes, quiet: bool = False) -> bool:
+        """Write the ``04 17`` system-settings block.
+
+        Sequence: ``04 18`` → ``04 17`` (header) → 64-byte block → ``04 02``.
+        Unlike lighting there is no ``04 F0`` for this opcode, and the block is
+        sent blind — the firmware offers no read-back of these fields.
+        """
+        if len(block) != 64:
+            raise ValueError(f"settings block must be 64 bytes, got {len(block)}")
+        header = bytes([0x04, 0x17, 0x01, 0, 0, 0, 0, 0, 0x01])
+        self._drain()
+        begin = self.command(0x04, 0x18)
+        enter = self.command(*header)
+        self.send_feature(block)
+        time.sleep(CMD_DELAY)
+        commit = self.command(0x04, 0x02)
+        if not quiet:
+            print(f"  begin     : {self.status(begin)}")
+            print(f"  settings  : {self.status(enter)}")
+            print(f"  commit    : {self.status(commit)}")
+        return self.status(commit) == "ok"
+
     # -- misc --------------------------------------------------------------
     def clock_sync(self, quiet: bool = False) -> bool:
         """Push the local clock to the keyboard's RTC."""
@@ -392,6 +461,37 @@ def main(argv: list[str]) -> int:
     light.add_argument("--speed", type=int, default=3, help="0-5")
     light.add_argument("--colorful", action="store_true", help="use the rainbow palette")
 
+    settings = sub.add_parser(
+        "settings",
+        help="show or set the 04 17 system settings (locks, Fn switch, sleep, debounce)",
+        description=(
+            "Write the 04 17 system-settings block. There is no read-back, so "
+            "omitted flags fall back to the defaults below and the complete block "
+            "is sent every time."
+        ),
+        epilog=(
+            "Confidence: the field offsets are verified in the vendor binary "
+            "(FUN_004141a0); the value semantics (which sleep index means 1/5/30 "
+            "minutes, momentary vs toggle, debounce level) are inferred from the "
+            "vendor UI strings. No read-back exists, so this command cannot show "
+            "the keyboard's current settings. Use --dry-run to inspect the bytes."
+        ),
+    )
+    settings.add_argument("--win-lock", action=argparse.BooleanOptionalAction,
+                          default=None, help="disable the Windows key")
+    settings.add_argument("--alt-tab", action=argparse.BooleanOptionalAction,
+                          default=None, help="disable Alt+Tab")
+    settings.add_argument("--alt-f4", action=argparse.BooleanOptionalAction,
+                          default=None, help="disable Alt+F4")
+    settings.add_argument("--fn-toggle", choices=sorted(SETTINGS_FN), default=None,
+                          help="Fn key behaviour: momentary or toggle (inferred)")
+    settings.add_argument("--sleep", choices=sorted(SETTINGS_SLEEP), default=None,
+                          help="sleep after this many minutes, or 'off' (inferred)")
+    settings.add_argument("--debounce", type=int, choices=range(1, 6), default=None,
+                          help="key response time 1-5 (inferred)")
+    settings.add_argument("--dry-run", action="store_true",
+                          help="print the exact bytes and send nothing")
+
     args = parser.parse_args(argv)
 
     if args.command == "info":
@@ -405,6 +505,49 @@ def main(argv: list[str]) -> int:
         for index, name in enumerate(Device.LIGHT_MODES, start=1):
             print(f"{index:2d}  {name}")
         return 0
+
+    if args.command == "settings":
+        disable_alttab = bool(args.alt_tab)
+        disable_altf4 = bool(args.alt_f4)
+        disable_win = bool(args.win_lock)
+        fn_switch = SETTINGS_FN[args.fn_toggle] if args.fn_toggle else 0
+        sleep_time = SETTINGS_SLEEP[args.sleep] if args.sleep else 0
+        key_respondtime = args.debounce if args.debounce is not None else 3
+        block = settings_block(disable_alttab, disable_altf4, disable_win,
+                               fn_switch, sleep_time, key_respondtime)
+        provided = any(value is not None for value in (
+            args.win_lock, args.alt_tab, args.alt_f4,
+            args.fn_toggle, args.sleep, args.debounce))
+
+        if not provided or args.dry_run:
+            reports = (
+                ("begin     ", bytes([0x04, 0x18]) + bytes(62)),
+                ("04 17 hdr ", bytes([0x04, 0x17, 0x01, 0, 0, 0, 0, 0, 0x01])
+                              + bytes(55)),
+                ("block     ", block),
+                ("commit    ", bytes([0x04, 0x02]) + bytes(62)),
+            )
+            print("04 17 system settings — written blind, the device has no read-back")
+            print(f"  fields    : alt-tab={int(disable_alttab)} "
+                  f"alt-f4={int(disable_altf4)} win={int(disable_win)} "
+                  f"fn={fn_switch} sleep={sleep_time} debounce={key_respondtime}")
+            print("  confidence: field offsets verified in the vendor binary; "
+                  "value semantics inferred")
+            for label, report in reports:
+                print(f"  {label}: {report.hex(' ')}")
+            print("  (no 04 F0 for this opcode)")
+
+        if not provided:
+            print("(no settings flags given: these are the defaults)")
+        if args.dry_run:
+            print("(dry run: nothing was sent)")
+            return 0
+        if not provided:
+            print("(nothing was sent; pass flags to write)")
+            return 0
+
+        with Device(verbose=args.verbose) as dev:
+            return 0 if dev.set_settings(block) else 1
 
     with Device(verbose=args.verbose) as dev:
         if args.command == "clock":

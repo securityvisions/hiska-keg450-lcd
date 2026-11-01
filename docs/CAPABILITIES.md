@@ -45,12 +45,16 @@ checksum. Commands are spaced 35 ms.
 
 ### Settings
 
-| Capability | Opcode | Notes |
-|---|---|---|
-| Disable Alt+Tab / Alt+F4 / Win | `04 17` | block bytes 2 / 3 / 4 **[C]** |
-| Fn switch: momentary vs toggle | `04 17` | byte 5 **[C] field, [I] value** |
-| Sleep time: off / 1 / 5 / 30 min | `04 17` | byte 6 **[C] field, [I] values** |
-| Key response time (debounce) 1–5 | `04 17` | byte 8 **[C] field, [I] values** |
+| Capability | Opcode | Notes | CLI |
+|---|---|---|---|
+| Disable Alt+Tab / Alt+F4 / Win | `04 17` | block bytes 2 / 3 / 4 **[C]** | [`keg450.py settings`](../keg450.py) |
+| Fn switch: momentary vs toggle | `04 17` | byte 5 **[C] field, [I] value** | [`keg450.py settings --fn-toggle`](../keg450.py) |
+| Sleep time: off / 1 / 5 / 30 min | `04 17` | byte 6 **[C] field, [I] values** | [`keg450.py settings --sleep`](../keg450.py) |
+| Key response time (debounce) 1–5 | `04 17` | byte 8 **[C] field, [I] values** | [`keg450.py settings --debounce`](../keg450.py) |
+
+The CLI sends the complete 64-byte block every time (there is no read-back), so
+fields left out fall back to the defaults. Use `--dry-run` to print the bytes
+without sending anything.
 
 ### Display
 
@@ -95,8 +99,8 @@ checksum. Commands are spaced 35 ms.
 
 | Tool | What it does |
 |---|---|
-| [`keg450.py`](../keg450.py) | image/GIF upload, lighting, clock — the reference implementation |
-| [`live.py`](../live.py) | periodic frames, clock pushes aligned to the minute |
+| [`keg450.py`](../keg450.py) | image/GIF upload, lighting, clock, system settings — the reference implementation |
+| [`live.py`](../live.py) | periodic frames, clock pushes aligned to the minute, optional RTC sync |
 | [`hx450-studio`](https://github.com/securityvisions/hx450-studio) | the desktop studio |
 | [`hx450-re`](https://github.com/securityvisions/hx450-re) | gated opcode prober, usbmon capture/diff, Ghidra evidence |
 

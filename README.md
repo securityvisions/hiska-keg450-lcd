@@ -32,6 +32,8 @@ changing content — clock, CPU load, Claude Code usage — to the panel.
 - **Upload still images and animated GIFs** to the LCD — `PNG`, `JPG`, `GIF`
   (up to 255 frames), converted to the panel's RGB565 format.
 - **RGB lighting control** — all 20 effects, solid colour, brightness, speed.
+- **System settings** — disable Alt+Tab / Alt+F4 / Win, Fn momentary vs toggle,
+  sleep timer, key debounce (`04 17`), with `--dry-run` that prints the exact bytes.
 - **Live content** — a daemon that re-renders and pushes a frame on an interval:
   clock (aligned to the minute boundary), CPU/RAM/temperature, Claude Code context
   usage, or adaptive lighting driven by CPU load.
@@ -96,10 +98,34 @@ screen      : 160x96 RGB565, max 255 frames
 `--brightness` and `--speed` are `0-5`. `--colorful` selects the rainbow palette,
 in which case `--color` is ignored.
 
+### Settings
+
+The keyboard stores its system settings behind `04 17` (sequence `04 18` → `04 17`
+→ 64-byte block → `04 02`; unlike lighting there is no `04 F0`).
+
+```bash
+./keg450.py settings --dry-run                     # print the exact bytes, send nothing
+./keg450.py settings                               # no flags: show the defaults it would send
+./keg450.py settings --win-lock --alt-tab --alt-f4 # lock those shortcuts
+./keg450.py settings --no-win-lock --fn-toggle toggle
+./keg450.py settings --sleep 5 --debounce 4
+```
+
+`--fn-toggle momentary|toggle` · `--sleep off|1|5|30` (minutes) · `--debounce 1-5`.
+There is no read-back, so every call sends a **complete block**: fields you leave
+out fall back to the defaults (all locks off, Fn momentary, sleep off, debounce 3).
+
+Honesty on confidence: the **field offsets** (block bytes 2/3/4 = Alt+Tab / Alt+F4 /
+Win locks, 5 = Fn switch, 6 = sleep time, 8 = key response time, `AA 55` at 62–63)
+are verified in the vendor binary (`FUN_004141a0`). The **value semantics** — which
+sleep index is 1 vs 5 vs 30 minutes, momentary vs toggle, what debounce level 1–5
+feels like — are inferred from the vendor UI strings and unconfirmed on hardware.
+
 ### Live display
 
 ```bash
 ./live.py --provider clock  --interval 60      # time and date, minute-aligned
+./live.py --provider clock  --interval 60 --sync-clock
 ./live.py --provider sys    --interval 30      # CPU % / RAM / temp
 ./live.py --provider claude --interval 120     # Claude Code context usage
 ./live.py --provider text --text "BUILD OK" --once
@@ -115,17 +141,30 @@ Adaptive lighting — a solid colour that follows CPU load
 
 The clock provider schedules to the **next minute boundary + 1.2 s**, so the panel
 flips within about a second of the minute changing instead of lagging behind. A
-failed push retries after 3 s.
+failed push is logged and the loop keeps going.
 
-Run it in the background with the bundled user unit:
+Add `--sync-clock` to also push the local time to the keyboard RTC (`04 28`) when
+the loop starts and then once an hour. The panel shows the uploaded frame either
+way; a correct RTC only matters when the keyboard's own clock display mode is
+selected.
+
+### Keep the clock live
+
+The panel only stays live while something keeps pushing frames. Install the bundled
+user unit:
 
 ```bash
 mkdir -p ~/.config/systemd/user
-cp contrib/systemd/hiska-keg450.service ~/.config/systemd/user/
+cp contrib/systemd/hiska-keg450-live.service ~/.config/systemd/user/
 systemctl --user daemon-reload
-systemctl --user enable --now hiska-keg450.service
-journalctl --user -u hiska-keg450 -f
+systemctl --user enable --now hiska-keg450-live.service
+journalctl --user -u hiska-keg450-live -f
 ```
+
+It runs `live.py --provider clock --interval 60`; edit `ExecStart` if you cloned the
+repository somewhere other than `~/Personal/hiska-keg450-lcd` (`%h` is your home
+directory). `Restart=always` brings the clock back after a suspend or a replug. Add
+`--sync-clock` to the exec line to keep the keyboard's own RTC correct too.
 
 ## ⚠️ Limitations and flash wear
 
@@ -152,7 +191,8 @@ Two are vendor-specific:
 An upload is `04 18` (begin) → `04 72` (metadata, page count) → N page writes →
 `04 02` (commit), with 4096-byte pages converted to little-endian RGB565 and a
 256-byte header carrying the frame count and per-frame delays. Lighting is
-`04 18` → `04 13` → a 64-byte effect packet → `04 02` → `04 F0`.
+`04 18` → `04 13` → a 64-byte effect packet → `04 02` → `04 F0`. System settings
+are `04 18` → `04 17` → a 64-byte settings block → `04 02`, with no `04 F0`.
 
 Two Linux traps worth knowing: control reports need a **65-byte** ioctl buffer
 (report-ID byte included) and image pages must be written as **4097** bytes, or

@@ -1,0 +1,16 @@
+[Unit]
+Description=HISKA HX-KEG450 live clock on the keyboard LCD
+Documentation=https://github.com/securityvisions/hiska-keg450-lcd
+After=default.target
+
+[Service]
+Type=simple
+# Adjust the path to wherever you cloned the repository (%h = your home directory).
+# Keep the interval at 60 s or more: every upload rewrites the screen image.
+ExecStart=%h/Personal/hiska-keg450-lcd/live.py --provider clock --interval 60
+# Add --sync-clock to the line above to keep the keyboard's own RTC correct.
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
