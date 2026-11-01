@@ -30,9 +30,9 @@ checksum. Commands are spaced 35 ms.
 | Capability | Opcode | Notes |
 |---|---|---|
 | 19 on-board effects + Off | `04 13` + light block | mode `0x00` off, `0x01–0x13` effects, `0x80` per-key; fields: mode, R, G, B, colourful, brightness 0–5, speed 0–5, direction 0/1 **[C]** |
-| Per-key static colours | `04 23` | 576-byte RGB table (144 keys) or 192-byte mono; `[8]=9` RGB, `[8]=3` mono. Device itself holds 256 records × 3 pages **[C] framing, [U] page model** |
+| Per-key static colours | `04 23` | 576-byte RGB table (144 keys) or 192-byte mono; `[8]=9` RGB, `[8]=3` mono. **Verified on hardware: writing the table turns every key the chosen colour.** Device itself holds 256 records × 3 pages **[C] framing + write, [U] page model** |
 | Real-time per-key streaming | `04 20` | 512-byte frame, repeated every ~30 ms, no begin/end wrapper — this is how the vendor drives its PC-side effects and the music-rhythm mode **[C]** |
-| Read back per-key colours | `04 F5` | returns 9 × 64 B; the app decodes `[idx][R][G][B]`. See the hardware caveat below **[C]** framing, **[U]** semantics |
+| Read back per-key colours | `04 F5` | returns 9 × 64 B; the app decodes `[idx][R][G][B]`. See the hardware caveat below — it mirrors the **playing effect**, not the stored table **[C]** framing, **[U]** semantics |
 
 ### Keys and macros
 
@@ -93,7 +93,7 @@ without sending anything.
 | `04 F5` is a heartbeat poll | It returns **9 × 64 B of per-key colour records** (3 pages × 256 records on the device). The vendor app's 30 ms `04 F5 … 09` poll *is* a colour read, it just ignores the result |
 | `04 72` slot is always 0 | The app sends `GetCurSel()+1`; both `0x00` and `0x01` are accepted by hardware |
 | The screen might not refresh on re-upload | It does: three consecutive uploads left the panel showing the third frame, so "live" failures are client scheduling problems, not protocol ones |
-| `04 F5` is a reliable "what colour is key X" oracle | **Not yet.** Setting six known solid colours did not move the values; it looks like a live LED buffer or a different layer. Needs a known-per-key write/read sweep before it can be trusted |
+| `04 F5` is a reliable "what colour is key X" oracle | **No.** A per-key table written with `04 23` *does* change the keyboard (verified visually) but the `04 F5` read does not mirror it — the read reflects the playing effect buffer, not the stored table |
 
 ## Tools
 
